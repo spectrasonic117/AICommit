@@ -2,7 +2,7 @@
   "name": "ai-commit",
   "displayName": "AI Commit",
   "description": "Generate commit messages using Google Gemini AI. Stage, generate, and commit with one click.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "aicommit",
   "license": "MIT",
   "repository": {

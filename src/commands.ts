@@ -100,9 +100,7 @@ async function handleGenerateCommit(
         repo.inputBox.value = message;
         await commit(repo, message);
 
-        vscode.window.showInformationMessage(
-          `✅ Committed: ${message}`
-        );
+        vscode.window.showInformationMessage("Commit Generated Successfully");
       }
     );
   } catch (error) {
