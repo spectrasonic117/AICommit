@@ -1,0 +1,14 @@
+.vscode/**
+.vscode-test/**
+src/**
+node_modules/**
+**/tsconfig.json
+**/.gitignore
+.git/**
+bun.lockb
+bun.lock
+.commandcode/**
+LICENSE*.txt
+**/*.md
+!README.md
+!LICENSE

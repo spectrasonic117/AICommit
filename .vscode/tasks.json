@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "bun",
+      "command": "run",
+      "args": ["compile"],
+      "label": "bun: compile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent"
+      }
+    }
+  ]
+}

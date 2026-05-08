@@ -1,0 +1,121 @@
+{
+  "name": "ai-commit",
+  "displayName": "AI Commit",
+  "description": "Generate commit messages using Google Gemini AI. Stage, generate, and commit with one click.",
+  "version": "0.0.3",
+  "publisher": "aicommit",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aicommit/vscode-ai-commit"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "gemini",
+    "gemma",
+    "conventional commits"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiCommit.generateCommit",
+        "title": "Generate AI Commit",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "aiCommit.selectModel",
+        "title": "AI Commit: Select Model"
+      },
+      {
+        "command": "aiCommit.setApiKey",
+        "title": "AI Commit: Set API Key"
+      },
+      {
+        "command": "aiCommit.diagnose",
+        "title": "AI Commit: Diagnose"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "aiCommit.generateCommit",
+          "when": "scmProvider == git",
+          "group": "navigation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aiCommit.generateCommit",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "aiCommit.selectModel",
+          "when": "true"
+        },
+        {
+          "command": "aiCommit.setApiKey",
+          "when": "true"
+        },
+        {
+          "command": "aiCommit.diagnose",
+          "when": "true"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Commit",
+      "properties": {
+        "aiCommit.model": {
+          "type": "string",
+          "default": "gemma-4-31b-it",
+          "enum": [
+            "gemma-4-31b-it",
+            "gemma-4-26b-a4b-it"
+          ],
+          "enumDescriptions": [
+            "Gemma 4 31B IT — More capable, slightly slower",
+            "Gemma 4 26B A4B IT — Faster, lighter"
+          ],
+          "description": "Gemini model to use for generating commit messages"
+        },
+        "aiCommit.systemPrompt": {
+          "type": "string",
+          "default": "You are an expert developer that generates concise, conventional commit messages following the Conventional Commits specification. Rules:\n- Format: type(scope): description\n- Types: feat, fix, refactor, docs, test, chore, style, perf\n- Keep the first line under 72 characters\n- Be specific about WHAT changed, not HOW\n- Return ONLY the commit message, no explanations, no markdown fences.",
+          "description": "System prompt sent to the AI. Customize how commit messages are generated.",
+          "editPresentation": "multilineText"
+        },
+        "aiCommit.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Google Gemini API key. Stored securely. Use 'AI Commit: Set API Key' command to set it properly (uses VSCode Secrets)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "bun run compile",
+    "compile": "bun build ./src/extension.ts --outfile ./out/extension.js --target node --format cjs --external vscode --sourcemap=inline",
+    "watch": "bun build ./src/extension.ts --outfile ./out/extension.js --target node --format cjs --external vscode --sourcemap=inline --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package --no-yarn"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.3.0",
+    "typescript": "^5.4.0"
+  }
+}
