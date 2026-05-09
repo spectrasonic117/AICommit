@@ -3,11 +3,11 @@
   "displayName": "AI Commit",
   "description": "Generate commit messages using Google Gemini AI. Stage, generate, and commit with one click.",
   "version": "0.0.5",
-  "publisher": "aicommit",
+  "publisher": "Spectrasonic",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aicommit/vscode-ai-commit"
+    "url": "https://github.com/spectrasonic117/AICommit"
   },
   "engines": {
     "vscode": "^1.85.0"
