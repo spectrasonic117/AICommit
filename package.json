@@ -2,7 +2,7 @@
   "name": "ai-commit",
   "displayName": "AI Commit",
   "description": "Generate commit messages using Google Gemini AI. Stage, generate, and commit with one click.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "aicommit",
   "license": "MIT",
   "repository": {
@@ -36,6 +36,10 @@
         "icon": "$(sparkle)"
       },
       {
+        "command": "aiCommit.selectProvider",
+        "title": "AI Commit: Select Provider"
+      },
+      {
         "command": "aiCommit.selectModel",
         "title": "AI Commit: Select Model"
       },
@@ -62,6 +66,10 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "aiCommit.selectProvider",
+          "when": "true"
+        },
+        {
           "command": "aiCommit.selectModel",
           "when": "true"
         },
@@ -78,7 +86,20 @@
     "configuration": {
       "title": "AI Commit",
       "properties": {
-        "aiCommit.model": {
+        "aiCommit.provider": {
+          "type": "string",
+          "default": "google",
+          "enum": [
+            "google",
+            "mistral"
+          ],
+          "enumDescriptions": [
+            "Google (Gemini) — Google's AI models",
+            "Mistral (Codestral) — Mistral's code-specialized models"
+          ],
+          "description": "AI provider to use for generating commit messages"
+        },
+        "aiCommit.modelGoogle": {
           "type": "string",
           "default": "gemma-4-31b-it",
           "enum": [
@@ -90,6 +111,19 @@
             "Gemma 4 26B A4B IT — Faster, lighter"
           ],
           "description": "Gemini model to use for generating commit messages"
+        },
+        "aiCommit.modelMistral": {
+          "type": "string",
+          "default": "codestral-latest",
+          "enum": [
+            "codestral-latest",
+            "codestral-2505"
+          ],
+          "enumDescriptions": [
+            "Codestral (Latest) — Most recent Codestral model",
+            "Codestral 2505 — Specific Codestral version"
+          ],
+          "description": "Mistral Codestral model to use for generating commit messages"
         },
         "aiCommit.systemPrompt": {
           "type": "string",

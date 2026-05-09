@@ -12,3 +12,5 @@ LICENSE*.txt
 **/*.md
 !README.md
 !LICENSE
+.claude/**
+skills-lock.json

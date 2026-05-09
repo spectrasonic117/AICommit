@@ -1,5 +1,19 @@
 import * as vscode from "vscode";
-import { generateCommitMessage, listAvailableModels } from "./ai/gemini";
+import { generateCommitMessage as geminiGenerateCommit } from "./ai/gemini";
+import { generateCommitMessage as mistralGenerateCommit } from "./ai/mistral";
+import {
+  Provider,
+  ProviderId,
+  PROVIDERS,
+  getProvider,
+  getConfiguredProvider,
+  setProvider,
+} from "./ai/providers";
+import {
+  getApiKey,
+  promptForApiKey,
+  getOrPromptApiKey,
+} from "./ui/apiKeyPrompt";
 import {
   getGitAPI,
   getRepository,
@@ -8,7 +22,6 @@ import {
   getStagedDiff,
   commit,
 } from "./git/operations";
-import { getApiKey, promptForApiKey } from "./ui/apiKeyPrompt";
 
 export function registerCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -17,12 +30,16 @@ export function registerCommands(context: vscode.ExtensionContext): void {
       () => handleGenerateCommit(context)
     ),
     vscode.commands.registerCommand(
+      "aiCommit.selectProvider",
+      () => handleSelectProvider()
+    ),
+    vscode.commands.registerCommand(
       "aiCommit.selectModel",
       () => handleSelectModel()
     ),
     vscode.commands.registerCommand(
       "aiCommit.setApiKey",
-      () => promptForApiKey(context)
+      () => handleSetApiKey(context)
     ),
     vscode.commands.registerCommand(
       "aiCommit.diagnose",
@@ -54,16 +71,18 @@ async function handleGenerateCommit(
       return;
     }
 
-    let apiKey = await getApiKey(context);
+    const provider = await getConfiguredProvider();
+    let apiKey = await getApiKey(context, provider.id);
+
     if (!apiKey) {
-      apiKey = await promptForApiKey(context);
+      apiKey = await promptForApiKey(context, provider.id);
       if (!apiKey) {
         return;
       }
     }
 
     const config = vscode.workspace.getConfiguration("aiCommit");
-    const model = config.get<string>("model", "gemma-4-31b-it");
+    const model = config.get<string>(`model${provider.id.charAt(0).toUpperCase() + provider.id.slice(1)}`, provider.models[0]?.id || "");
     const systemPrompt = config.get<string>("systemPrompt", "");
 
     const stagedCount = repo.state.indexChanges.length;
@@ -88,13 +107,16 @@ async function handleGenerateCommit(
           throw new Error("No diff available after staging.");
         }
 
-        progress.report({ message: "Calling Gemini API..." });
-        const message = await generateCommitMessage(
-          model,
-          apiKey!,
-          systemPrompt,
-          diff
-        );
+        progress.report({ message: `Calling ${provider.name} API...` });
+
+        let message: string;
+        if (provider.id === "google") {
+          message = await geminiGenerateCommit(model, apiKey!, systemPrompt, diff);
+        } else if (provider.id === "mistral") {
+          message = await mistralGenerateCommit(model, apiKey!, systemPrompt, diff);
+        } else {
+          throw new Error(`Unsupported provider: ${provider.id}`);
+        }
 
         progress.report({ message: "Committing..." });
         repo.inputBox.value = message;
@@ -109,31 +131,63 @@ async function handleGenerateCommit(
   }
 }
 
-async function handleSelectModel(): Promise<void> {
-  const config = vscode.workspace.getConfiguration("aiCommit");
-  const current = config.get<string>("model", "gemma-4-31b-it");
+async function handleSelectProvider(): Promise<void> {
+  const currentProvider = await getConfiguredProvider();
 
-  const items: vscode.QuickPickItem[] = [
-    {
-      label: "gemma-4-31b-it",
-      description: "More capable, slightly slower",
-      detail: current === "gemma-4-31b-it" ? "Currently selected" : undefined,
-    },
-    {
-      label: "gemma-4-26b-a4b-it",
-      description: "Faster, lighter",
-      detail: current === "gemma-4-26b-a4b-it" ? "Currently selected" : undefined,
-    },
-  ];
+  const items: vscode.QuickPickItem[] = PROVIDERS.map((p) => ({
+    label: p.name,
+    description: `${p.models.length} models available`,
+    detail: currentProvider.id === p.id ? "Currently selected" : undefined,
+  }));
 
   const picked = await vscode.window.showQuickPick(items, {
-    title: "AI Commit: Select Model",
-    placeHolder: "Choose the Gemini model for commit generation",
+    title: "AI Commit: Select Provider",
+    placeHolder: "Choose the AI provider for commit generation",
+  });
+
+  if (picked) {
+    const selectedProvider = PROVIDERS.find((p) => p.name === picked.label);
+    if (selectedProvider) {
+      await setProvider(selectedProvider.id);
+
+      const config = vscode.workspace.getConfiguration("aiCommit");
+      const modelKey = `model${selectedProvider.id.charAt(0).toUpperCase() + selectedProvider.id.slice(1)}`;
+      const currentModel = config.get<string>(modelKey);
+
+      if (!currentModel || !selectedProvider.models.some((m) => m.id === currentModel)) {
+        await config.update(
+          modelKey,
+          selectedProvider.models[0]?.id,
+          vscode.ConfigurationTarget.Global
+        );
+      }
+
+      vscode.window.showInformationMessage(
+        `AI Commit provider set to: ${selectedProvider.name}`
+      );
+    }
+  }
+}
+
+async function handleSelectModel(): Promise<void> {
+  const provider = await getConfiguredProvider();
+  const config = vscode.workspace.getConfiguration("aiCommit");
+  const modelKey = `model${provider.id.charAt(0).toUpperCase() + provider.id.slice(1)}`;
+  const current = config.get<string>(modelKey, provider.models[0]?.id || "");
+
+  const items: vscode.QuickPickItem[] = provider.models.map((m) => ({
+    label: m.name,
+    detail: current === m.id ? "Currently selected" : undefined,
+  }));
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: `AI Commit: Select Model (${provider.name})`,
+    placeHolder: `Choose the model for ${provider.name}`,
   });
 
   if (picked) {
     await config.update(
-      "model",
+      modelKey,
       picked.label,
       vscode.ConfigurationTarget.Global
     );
@@ -143,91 +197,57 @@ async function handleSelectModel(): Promise<void> {
   }
 }
 
+async function handleSetApiKey(context: vscode.ExtensionContext): Promise<void> {
+  const provider = await getConfiguredProvider();
+  await promptForApiKey(context, provider.id);
+}
+
 async function handleDiagnose(
   context: vscode.ExtensionContext
 ): Promise<void> {
-  const apiKey = await getApiKey(context);
+  const provider = await getConfiguredProvider();
+  const apiKey = await getApiKey(context, provider.id);
+
   if (!apiKey) {
-    const prompted = await promptForApiKey(context);
+    const prompted = await promptForApiKey(context, provider.id);
     if (!prompted) {
       return;
     }
   }
 
-  const key = (await getApiKey(context))!;
+  const key = (await getApiKey(context, provider.id))!;
 
   const output = vscode.window.createOutputChannel("AI Commit: Diagnose");
   output.show();
 
   output.appendLine("=== AI Commit Diagnosis ===");
   output.appendLine("");
+  output.appendLine(`Provider: ${provider.name}`);
+  output.appendLine("");
 
-  output.appendLine("1. Checking available models...");
+  output.appendLine(`Available models for ${provider.name}:`);
 
+  for (const m of provider.models) {
+    output.appendLine(`   - ${m.name}`);
+  }
+
+  output.appendLine("");
+
+  const modelKey = `model${provider.id.charAt(0).toUpperCase() + provider.id.slice(1)}`;
+  const config = vscode.workspace.getConfiguration("aiCommit");
+  const currentModel = config.get<string>(modelKey, provider.models[0]?.id || "");
+
+  output.appendLine(`Testing '${currentModel}'...`);
   try {
-    const models = await listAvailableModels(key);
-    output.appendLine(`   Found ${models.length} models:`);
-
-    const gemmaModels: string[] = [];
-    for (const m of models) {
-      const methods = m.supportedGenerationMethods?.join(", ") || "none";
-      output.appendLine(`   - ${m.name} (${m.displayName}) [${methods}]`);
-      if (m.name.toLowerCase().includes("gemma")) {
-        gemmaModels.push(m.name);
-      }
+    if (provider.id === "google") {
+      await geminiGenerateCommit(currentModel, key, "test", "test diff");
+    } else if (provider.id === "mistral") {
+      await mistralGenerateCommit(currentModel, key, "test", "test diff");
     }
-
-    output.appendLine("");
-    output.appendLine("2. Gemma models found:");
-    if (gemmaModels.length > 0) {
-      for (const g of gemmaModels) {
-        output.appendLine(`   ✓ ${g}`);
-      }
-      output.appendLine("");
-      output.appendLine(
-        "   Use these EXACT names in Settings → AI Commit → Model."
-      );
-    } else {
-      output.appendLine(
-        "   ✗ No Gemma models found for this API key."
-      );
-      output.appendLine(
-        "   Try at https://aistudio.google.com to enable Gemma models."
-      );
-    }
-
-    output.appendLine("");
-    output.appendLine("3. Testing 'gemma-4-31b-it'...");
-    try {
-      await generateCommitMessage(
-        "gemma-4-31b-it",
-        key,
-        "test",
-        "test diff"
-      );
-    } catch (e) {
-      output.appendLine(
-        `   ✗ gemma-4-31b-it: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
-
-    output.appendLine("");
-    output.appendLine("4. Testing 'gemma-4-26b-a4b-it'...");
-    try {
-      await generateCommitMessage(
-        "gemma-4-26b-a4b-it",
-        key,
-        "test",
-        "test diff"
-      );
-    } catch (e) {
-      output.appendLine(
-        `   ✗ gemma-4-26b-a4b-it: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
+    output.appendLine(`   ✓ ${currentModel}: OK`);
   } catch (e) {
     output.appendLine(
-      `   ✗ Failed: ${e instanceof Error ? e.message : String(e)}`
+      `   ✗ ${currentModel}: ${e instanceof Error ? e.message : String(e)}`
     );
   }
 
