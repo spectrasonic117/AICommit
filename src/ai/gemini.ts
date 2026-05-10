@@ -195,7 +195,8 @@ export async function generateCommitMessage(
               return;
             }
 
-            resolve(text.trim());
+            const cleanedText = text.trim().replace(/^```\w*\n?|```$/g, "").trim();
+            resolve(cleanedText);
           } catch {
             reject(
               new Error(`Failed to parse Gemini API response. Raw: ${data.slice(0, 300)}`)

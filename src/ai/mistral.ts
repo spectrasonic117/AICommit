@@ -124,7 +124,8 @@ export async function generateCommitMessage(
               return;
             }
 
-            resolve(message.trim());
+            const cleanedMessage = message.trim().replace(/^```\w*\n?|```$/g, "").trim();
+            resolve(cleanedMessage);
           } catch {
             reject(
               new Error(
